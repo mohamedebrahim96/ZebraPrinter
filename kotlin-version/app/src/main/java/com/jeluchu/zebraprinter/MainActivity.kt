@@ -1,8 +1,6 @@
 package com.jeluchu.zebraprinter
 
 import android.Manifest
-import android.R.attr.maxHeight
-import android.R.attr.maxWidth
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -44,13 +42,14 @@ class MainActivity : AppCompatActivity() {
         btnPrint.setOnClickListener {
             try {
                 //connect()
-                createPdf()
+                //createPdf()
+                rotatePDF()
             } catch (ex: Exception) {
                 ex.printStackTrace()
             }
         }
-
     }
+
 
     private fun isStoragePermissionGranted(): Boolean {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
@@ -124,23 +123,29 @@ class MainActivity : AppCompatActivity() {
 //        document.writeTo(FileOutputStream(File("/sdcard/Download/Downloads/sample2.pdf")))
 //        document.close()
 //    }
-    private fun createPdf() {
+
+
+    private fun rotatePDF() {
         val document = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
             PdfDocument()
         } else {
             TODO("VERSION.SDK_INT < KITKAT")
         }
-        val pageInfo: PageInfo = PageInfo.Builder(559, 838, 1).create()
+        val pageInfo: PageInfo = PageInfo.Builder(612, 792, 1).create()
         val page: PdfDocument.Page = document.startPage(pageInfo)
         val canvas = page.canvas
 //        val paint = Paint()
 //        paint.textSize = 30f
         val icon = BitmapFactory.decodeResource(this.resources,
                 R.drawable.ticket)
-        val iconResize =
-                getResizedBitmap(generateImageFromPdf("shipexpresslabel.pdf", 0, 559, 838)!!,
-                        374, 250)
+//        val iconResize =
+//                getResizedBitmap(generateImageFromPdf("shipexpresslabel.pdf", 0, 559, 838)!!,
+//                        374, 250)
 
+        val bitmapImage = BitmapFactory.decodeFile("/sdcard/Download/Downloads/shipexpresslabel.png")
+        val iconResize = RotateBitmap(generateImageFromPdf(
+                "sampleparcelid2.pdf", 0, 612, 792)!!,
+                270f)
 
 //        val iconResize =
 //                getResizedBitmap(generateImageFromPdf(
@@ -168,6 +173,54 @@ class MainActivity : AppCompatActivity() {
         }
         document.close()
     }
+//    private fun createPdf() {
+//        val document = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+//            PdfDocument()
+//        } else {
+//            TODO("VERSION.SDK_INT < KITKAT")
+//        }
+//        val pageInfo: PageInfo = PageInfo.Builder(559, 838, 1).create()
+//        val page: PdfDocument.Page = document.startPage(pageInfo)
+//        val canvas = page.canvas
+////        val paint = Paint()
+////        paint.textSize = 30f
+//        val icon = BitmapFactory.decodeResource(this.resources,
+//                R.drawable.ticket)
+////        val iconResize =
+////                getResizedBitmap(generateImageFromPdf("shipexpresslabel.pdf", 0, 559, 838)!!,
+////                        374, 250)
+//
+//    val bitmapImage = BitmapFactory.decodeFile("/sdcard/Download/Downloads/shipexpresslabel.png")
+//    val iconResize = RotateBitmap(generateImageFromPdf(
+//            "sampleparcelid2.pdf", 0, 612, 792)!!,
+//            90f)
+//
+////        val iconResize =
+////                getResizedBitmap(generateImageFromPdf(
+////                        "Parcel_dropped.pdf", 0, 612, 792)!!,
+////                        150,150)
+//
+//        canvas.drawBitmap(iconResize!!, 0f, 0f, null)
+//        document.finishPage(page)
+//
+//        // write the document content
+//        val directoryPath = "/sdcard/Download/Downloads/"//Environment.getExternalStorageDirectory().getPath() + "/usbpdf/"
+//        val file = File(directoryPath)
+//        if (!file.exists()) {
+//            file.mkdirs()
+//        }
+//        val targetPdf = directoryPath + "sample2.pdf"
+//        val filePath = File(targetPdf)
+//        try {
+//            document.writeTo(FileOutputStream(filePath))
+//            connect(filePath.path)
+//            Toast.makeText(this, "Document Created Successfully", Toast.LENGTH_LONG).show()
+//        } catch (e: IOException) {
+//            Log.e("main", "error " + e.toString())
+//            Toast.makeText(this, "Something wrong: " + e.toString(), Toast.LENGTH_LONG).show()
+//        }
+//        document.close()
+//    }
 
     private fun generateImageFromPdf(assetFileName: String, pageNumber: Int, width: Int, height: Int): Bitmap? {
         val pdfiumCore = PdfiumCore(this)
@@ -189,6 +242,8 @@ class MainActivity : AppCompatActivity() {
         return null
     }
 
+
+
     private fun resize(imaged: Bitmap, maxWidth: Int, maxHeight: Int): Bitmap? {
         var image = imaged
         if (maxHeight > 0 && maxWidth > 0) {
@@ -208,13 +263,12 @@ class MainActivity : AppCompatActivity() {
         return image
     }
 
-    private fun rotateBitmap(source: Bitmap, angle: Float): Bitmap? {
+    fun RotateBitmap(source: Bitmap, angle: Float): Bitmap? {
         val matrix = Matrix()
         matrix.postRotate(angle)
         val bitmap = Bitmap.createBitmap(source, 0, 0, source.width, source.height, matrix, true)
-        return Bitmap.createScaledBitmap(bitmap, (bitmap.getWidth() * 0.8).toInt(),
-                (bitmap.getHeight() * 0.8).toInt(), true)
-
+        return Bitmap.createScaledBitmap(bitmap, (bitmap.width * 0.9).toInt(),
+                (bitmap.height * 0.9).toInt(), true)
     }
 
     fun getResizedBitmap(bm: Bitmap, newHeight: Int, newWidth: Int): Bitmap? {
@@ -232,28 +286,10 @@ class MainActivity : AppCompatActivity() {
         return Bitmap.createBitmap(bm, 0, 0, width, height, matrix, false)
     }
 
-    private fun scaleBitmap(bm: Bitmap): Bitmap? {
-        var bm = bm
-        var width = bm.width
-        var height = bm.height
-        Log.v("Pictures", "Width and height are $width--$height")
-        if (width > height) {
-            // landscape
-            val ratio = width.toFloat() / maxWidth
-            width = maxWidth
-            height = (height / ratio).toInt()
-        } else if (height > width) {
-            // portrait
-            val ratio = height.toFloat() / maxHeight
-            height = maxHeight
-            width = (width / ratio).toInt()
-        } else {
-            // square
-            height = maxHeight
-            width = maxWidth
-        }
-        Log.v("Pictures", "after scaling Width and height are $width--$height")
-        bm = Bitmap.createScaledBitmap(bm, width, height, true)
-        return bm
+    private fun resize22(bitmapImage: Bitmap):Bitmap{
+        val nh = (bitmapImage.height * (300.0 / bitmapImage.width)).toInt()
+        val scaled = Bitmap.createScaledBitmap(bitmapImage, 300, nh, true)
+        return scaled
     }
+
 }
