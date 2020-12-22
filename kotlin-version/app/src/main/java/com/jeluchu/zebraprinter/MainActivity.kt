@@ -2,9 +2,8 @@ package com.jeluchu.zebraprinter
 
 import android.Manifest
 import android.content.pm.PackageManager
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.graphics.Matrix
+import android.graphics.*
+import android.graphics.Paint.Align
 import android.graphics.pdf.PdfDocument
 import android.graphics.pdf.PdfDocument.PageInfo
 import android.os.Build
@@ -13,10 +12,17 @@ import android.os.ParcelFileDescriptor
 import android.os.StrictMode
 import android.os.StrictMode.ThreadPolicy
 import android.util.Log
+import android.view.View
+import android.widget.EditText
+import android.widget.ImageView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import com.github.barteksc.pdfviewer.util.FileUtils.fileFromAsset
+import com.google.zxing.BarcodeFormat
+import com.google.zxing.MultiFormatWriter
+import com.google.zxing.WriterException
+import com.google.zxing.common.BitMatrix
 import com.shockwave.pdfium.PdfiumCore
 import com.zebra.sdk.comm.Connection
 import com.zebra.sdk.comm.ConnectionException
@@ -34,22 +40,90 @@ import java.io.IOException
 class MainActivity : AppCompatActivity() {
 
     //private var printerConnection: BluetoothPrinterConnection? = null
-
+    private var editText: EditText? = null
+    private var imageView: ImageView? = null
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
         isStoragePermissionGranted()
+        editText = findViewById(R.id.editText)
+        imageView = findViewById(R.id.imageView)
+
         btnPrint.setOnClickListener {
             try {
                 //connect()
-                //createPdf()
-                rotatePDF()
+                createPdf()
+                //rotatePDF()
             } catch (ex: Exception) {
                 ex.printStackTrace()
             }
         }
     }
 
+    fun barCodePrinting(view: View) {
+        val barCodeText = "BRT43234334"
+        val width = 300
+        val height = 100
+        val multiFormatWriter = MultiFormatWriter()
+        try {
+            val bitMatrix: BitMatrix = multiFormatWriter.encode(barCodeText, BarcodeFormat.CODE_128,
+                    width, height)
+            val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.RGB_565)
+            for (i in 0 until width) {
+                for (j in 0 until height) {
+                    bitmap.setPixel(i, j, if (bitMatrix.get(i, j)) Color.BLACK else Color.WHITE)
+                }
+            }
+            convertBitmapToPDF(bitmap)
+        } catch (e: WriterException) {
+            e.printStackTrace()
+        }
+    }
+
+    private fun drawTextOverBitmap(barCodeText: String, bitmapImage: Bitmap): Bitmap {
+        val myBitmap = Bitmap.createBitmap(bitmapImage.width, bitmapImage.height, Bitmap.Config.ARGB_8888)
+        val myCanvas = Canvas(bitmapImage)
+        val paint = Paint()
+        paint.setAntiAlias(true)
+        paint.setSubpixelText(true)
+        paint.setStyle(Paint.Style.FILL)
+        paint.setColor(Color.BLACK)
+        paint.setTextSize(30f)
+        paint.setTextAlign(Align.CENTER)
+        myCanvas.drawText(barCodeText, 16f, 60f, paint)
+        return bitmapImage
+    }
+
+    private fun convertBitmapToPDF(bitmapImage: Bitmap) {
+        val document = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            PdfDocument()
+        } else {
+            TODO("VERSION.SDK_INT < KITKAT")
+        }
+        val pageInfo: PageInfo = PageInfo.Builder(bitmapImage.width, bitmapImage.height, 1).create()
+        val page: PdfDocument.Page = document.startPage(pageInfo)
+        val canvas = page.canvas
+        canvas.drawBitmap(bitmapImage, 0f, 20f, null)
+        document.finishPage(page)
+        // write the document content
+        val directoryPath = "/sdcard/Download/Downloads/"//Environment.getExternalStorageDirectory().getPath() + "/usbpdf/"
+        val file = File(directoryPath)
+        if (!file.exists()) {
+            file.mkdirs()
+        }
+        val targetPdf = directoryPath + "sample2.pdf"
+        val filePath = File(targetPdf)
+        try {
+            document.writeTo(FileOutputStream(filePath))
+            connect(filePath.path)
+            Toast.makeText(this, "Document Created Successfully", Toast.LENGTH_LONG).show()
+        } catch (e: IOException) {
+            Log.e("main", "error " + e.toString())
+            Toast.makeText(this, "Something wrong: " + e.toString(), Toast.LENGTH_LONG).show()
+        }
+        document.close()
+
+    }
 
     private fun isStoragePermissionGranted(): Boolean {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
@@ -99,6 +173,7 @@ class MainActivity : AppCompatActivity() {
             connection.open()
             val printer: ZebraPrinter = ZebraPrinterFactory.getInstance(connection)
             //printer.sendFileContents("/sdcard/Download/Downloads/shipexpresslabel.pdf")
+            //printer.sendFileContents("/sdcard/Download/Downloads/parcelusps.zpl")
             printer.sendFileContents(filePath)
         } catch (e: ConnectionException) {
             e.printStackTrace()
@@ -173,54 +248,55 @@ class MainActivity : AppCompatActivity() {
         }
         document.close()
     }
-//    private fun createPdf() {
-//        val document = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-//            PdfDocument()
-//        } else {
-//            TODO("VERSION.SDK_INT < KITKAT")
-//        }
-//        val pageInfo: PageInfo = PageInfo.Builder(559, 838, 1).create()
-//        val page: PdfDocument.Page = document.startPage(pageInfo)
-//        val canvas = page.canvas
-////        val paint = Paint()
-////        paint.textSize = 30f
-//        val icon = BitmapFactory.decodeResource(this.resources,
-//                R.drawable.ticket)
-////        val iconResize =
-////                getResizedBitmap(generateImageFromPdf("shipexpresslabel.pdf", 0, 559, 838)!!,
-////                        374, 250)
-//
-//    val bitmapImage = BitmapFactory.decodeFile("/sdcard/Download/Downloads/shipexpresslabel.png")
-//    val iconResize = RotateBitmap(generateImageFromPdf(
-//            "sampleparcelid2.pdf", 0, 612, 792)!!,
-//            90f)
-//
-////        val iconResize =
-////                getResizedBitmap(generateImageFromPdf(
-////                        "Parcel_dropped.pdf", 0, 612, 792)!!,
-////                        150,150)
-//
-//        canvas.drawBitmap(iconResize!!, 0f, 0f, null)
-//        document.finishPage(page)
-//
-//        // write the document content
-//        val directoryPath = "/sdcard/Download/Downloads/"//Environment.getExternalStorageDirectory().getPath() + "/usbpdf/"
-//        val file = File(directoryPath)
-//        if (!file.exists()) {
-//            file.mkdirs()
-//        }
-//        val targetPdf = directoryPath + "sample2.pdf"
-//        val filePath = File(targetPdf)
-//        try {
-//            document.writeTo(FileOutputStream(filePath))
-//            connect(filePath.path)
-//            Toast.makeText(this, "Document Created Successfully", Toast.LENGTH_LONG).show()
-//        } catch (e: IOException) {
-//            Log.e("main", "error " + e.toString())
-//            Toast.makeText(this, "Something wrong: " + e.toString(), Toast.LENGTH_LONG).show()
-//        }
-//        document.close()
-//    }
+
+    private fun createPdf() {
+        val document = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            PdfDocument()
+        } else {
+            TODO("VERSION.SDK_INT < KITKAT")
+        }
+        val pageInfo: PageInfo = PageInfo.Builder(559, 838, 1).create()
+        val page: PdfDocument.Page = document.startPage(pageInfo)
+        val canvas = page.canvas
+//        val paint = Paint()
+//        paint.textSize = 30f
+        val icon = BitmapFactory.decodeResource(this.resources,
+                R.drawable.ticket)
+//        val iconResize =
+//                getResizedBitmap(generateImageFromPdf("shipexpresslabel.pdf", 0, 559, 838)!!,
+//                        374, 250)
+
+        val bitmapImage = BitmapFactory.decodeFile("/sdcard/Download/Downloads/shipexpresslabel.png")
+        val iconResize = RotateBitmap(generateImageFromPdf(
+                "sampleparcelid2.pdf", 0, 612, 792)!!,
+                90f)
+
+//        val iconResize =
+//                getResizedBitmap(generateImageFromPdf(
+//                        "Parcel_dropped.pdf", 0, 612, 792)!!,
+//                        150,150)
+
+        canvas.drawBitmap(iconResize!!, 0f, 0f, null)
+        document.finishPage(page)
+
+        // write the document content
+        val directoryPath = "/sdcard/Download/Downloads/"//Environment.getExternalStorageDirectory().getPath() + "/usbpdf/"
+        val file = File(directoryPath)
+        if (!file.exists()) {
+            file.mkdirs()
+        }
+        val targetPdf = directoryPath + "sample2.pdf"
+        val filePath = File(targetPdf)
+        try {
+            document.writeTo(FileOutputStream(filePath))
+            connect(filePath.path)
+            Toast.makeText(this, "Document Created Successfully", Toast.LENGTH_LONG).show()
+        } catch (e: IOException) {
+            Log.e("main", "error " + e.toString())
+            Toast.makeText(this, "Something wrong: " + e.toString(), Toast.LENGTH_LONG).show()
+        }
+        document.close()
+    }
 
     private fun generateImageFromPdf(assetFileName: String, pageNumber: Int, width: Int, height: Int): Bitmap? {
         val pdfiumCore = PdfiumCore(this)
@@ -241,7 +317,6 @@ class MainActivity : AppCompatActivity() {
         }
         return null
     }
-
 
 
     private fun resize(imaged: Bitmap, maxWidth: Int, maxHeight: Int): Bitmap? {
@@ -286,7 +361,7 @@ class MainActivity : AppCompatActivity() {
         return Bitmap.createBitmap(bm, 0, 0, width, height, matrix, false)
     }
 
-    private fun resize22(bitmapImage: Bitmap):Bitmap{
+    private fun resize22(bitmapImage: Bitmap): Bitmap {
         val nh = (bitmapImage.height * (300.0 / bitmapImage.width)).toInt()
         val scaled = Bitmap.createScaledBitmap(bitmapImage, 300, nh, true)
         return scaled
